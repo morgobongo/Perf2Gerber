@@ -21,6 +21,8 @@ public class ComponentAdapter implements JsonSerializer<Component>, JsonDeserial
             return context.deserialize(jsonObject, FixedComponent.class);
         } else if ("StretchComponent".equals(type)) {
             return context.deserialize(jsonObject, StretchComponent.class);
+        } else if ("CustomComponent".equals(type)) {
+            return context.deserialize(jsonObject, CustomComponent.class);
         }
 
         throw new JsonParseException("Unknown Component Type: " + type);

@@ -48,6 +48,7 @@ public class EditorCanvas extends Canvas {
     private boolean isCommandPressed = false;
     private boolean isViewFlipped = false;
     private boolean hideUnusedPads = false;
+    private boolean hideComponents = false;
 
     // Couleurs personnalisables des composants
     private Color resistorColor = Color.web("#ADD8E6", 0.8);
@@ -351,6 +352,11 @@ public class EditorCanvas extends Canvas {
         this.hideUnusedPads = hide;
         draw();
     }
+    
+    public void setHideComponents(boolean hide) {
+        this.hideComponents = hide;
+        draw();
+    }
 
     public void setResistorColor(Color color) {
         this.resistorColor = Color.color(color.getRed(), color.getGreen(), color.getBlue(), 0.8);
@@ -614,13 +620,13 @@ public class EditorCanvas extends Canvas {
                         });
                         contextMenu.getItems().add(propsItem);
 
-                        if (clickedPart instanceof FixedComponent) {
+                        if (clickedPart instanceof FixedComponent || clickedPart instanceof com.perf2gerber.model.CustomComponent) {
                             javafx.scene.control.MenuItem rotItem = new javafx.scene.control.MenuItem("Rotate 90°");
-                            FixedComponent fc = (FixedComponent) clickedPart;
+                            Component rotComp = clickedPart;
                             rotItem.setOnAction(e -> {
-                                fc.setRotation(fc.getRotation() + 90);
-                                if (fc.getRotation() >= 360)
-                                    fc.setRotation(0);
+                                rotComp.setRotation(rotComp.getRotation() + 90);
+                                if (rotComp.getRotation() >= 360)
+                                    rotComp.setRotation(0);
                                 saveState();
                                 draw();
                             });
@@ -866,7 +872,7 @@ public class EditorCanvas extends Canvas {
             // --- 5. LOGIQUE DE PLACEMENT DE COMPOSANT ---
             if (currentTool == Tool.PLACE_PART && pendingPart != null) {
                 if (hoverGridX != null && hoverGridY != null) {
-                    if (pendingPart instanceof FixedComponent) {
+                    if (pendingPart instanceof FixedComponent || pendingPart instanceof com.perf2gerber.model.CustomComponent) {
                         Component clone = pendingPart.cloneComponent();
                         clone.setStartX(hoverGridX);
                         clone.setStartY(hoverGridY);
@@ -1081,8 +1087,8 @@ public class EditorCanvas extends Canvas {
             }
         }
 
-        // 4.5 Dessin des Composants par-dessus les traces
-        if (board.getComponents() != null) {
+        // 4.5 Dessin des autres Composants
+        if (!hideComponents) {
             for (Component c : board.getComponents()) {
                 drawComponent(gc, c);
             }
@@ -1264,6 +1270,38 @@ public class EditorCanvas extends Canvas {
             double y1 = getScreenY(sc.getStartY());
             double x2 = getScreenX(sc.getEndX());
             double y2 = getScreenY(sc.getEndY());
+            
+            if ("Visual Box".equals(sc.getType())) {
+                double minX = Math.min(x1, x2);
+                double maxX = Math.max(x1, x2);
+                double minY = Math.min(y1, y2);
+                double maxY = Math.max(y1, y2);
+                double w = maxX - minX;
+                double h = maxY - minY;
+                
+                gc.save();
+                if (c.isHovered()) {
+                    gc.setStroke(Color.YELLOW);
+                    gc.setLineWidth(3.0);
+                    gc.strokeRect(minX, minY, w, h);
+                }
+                gc.setFill(Color.web("#888888", 0.3));
+                gc.fillRect(minX, minY, w, h);
+                gc.setStroke(Color.WHITE);
+                gc.setLineWidth(1.0);
+                gc.setLineDashes(5.0);
+                gc.strokeRect(minX, minY, w, h);
+                
+                if (sc.getName() != null) {
+                    gc.setFill(Color.WHITE);
+                    gc.setTextAlign(javafx.scene.text.TextAlignment.CENTER);
+                    gc.setTextBaseline(javafx.geometry.VPos.CENTER);
+                    gc.setFont(new javafx.scene.text.Font("SansSerif", physicalToScreen(2.0)));
+                    gc.fillText(sc.getName(), minX + w/2.0, minY + h/2.0);
+                }
+                gc.restore();
+                return; // Actually, the original code doesn't return, it relies on this being the end of the drawing for one component. Wait, drawComponent is a helper method, returning is correct!
+            }
 
             double distPx = Math.hypot(x2 - x1, y2 - y1);
             double midX = (x1 + x2) / 2.0;
@@ -1448,6 +1486,89 @@ public class EditorCanvas extends Canvas {
                 }
             }
 
+            gc.restore();
+        } else if (c instanceof com.perf2gerber.model.CustomComponent) {
+            com.perf2gerber.model.CustomComponent cc = (com.perf2gerber.model.CustomComponent) c;
+            double sx = getScreenX(cc.getStartX());
+            double sy = getScreenY(cc.getStartY());
+
+            gc.save();
+            gc.translate(sx, sy);
+            if (cc.getRotation() != 0) {
+                gc.rotate(cc.getRotation());
+            }
+
+            // Draw bounding boxes for shapes
+            for (com.perf2gerber.model.CustomComponent.ShapeDef shape : cc.getShapes()) {
+                double shapeX = physicalToScreen(shape.offsetX * board.getGridSpacing());
+                double shapeY = -physicalToScreen(shape.offsetY * board.getGridSpacing()); // Y goes UP in physical
+                double shapeW = physicalToScreen(shape.width * board.getGridSpacing());
+                double shapeH = physicalToScreen(shape.height * board.getGridSpacing());
+
+                // Adjust shapeY because height goes DOWN in screen space
+                shapeY -= shapeH;
+
+                String colorHex = shape.color;
+                if (colorHex == null || colorHex.isEmpty()) {
+                    colorHex = cc.getColor(); // fallback to component color
+                }
+                if (colorHex == null || colorHex.isEmpty()) {
+                    colorHex = "#5C8A5C";
+                }
+                try {
+                    Color shapeColor = Color.web(colorHex);
+                    gc.setFill(new Color(shapeColor.getRed(), shapeColor.getGreen(), shapeColor.getBlue(), 0.5));
+                } catch (Exception ex) {
+                    gc.setFill(Color.web("#5C8A5C", 0.5)); // fallback
+                }
+                
+                gc.setStroke(Color.WHITE);
+                gc.setLineWidth(1.0);
+                
+                String t = shape.type != null ? shape.type : "RECTANGLE";
+                if (t.equals("RECTANGLE")) {
+                    gc.fillRect(shapeX, shapeY, shapeW, shapeH);
+                    gc.strokeRect(shapeX, shapeY, shapeW, shapeH);
+                } else if (t.equals("CIRCLE")) {
+                    gc.fillOval(shapeX, shapeY, shapeW, shapeH);
+                    gc.strokeOval(shapeX, shapeY, shapeW, shapeH);
+                } else if (t.startsWith("SEMICIRCLE")) {
+                    double angle = 0;
+                    if (t.equals("SEMICIRCLE_TOP")) angle = 0;
+                    else if (t.equals("SEMICIRCLE_BOTTOM")) angle = 180;
+                    else if (t.equals("SEMICIRCLE_LEFT")) angle = 90;
+                    else if (t.equals("SEMICIRCLE_RIGHT")) angle = 270;
+                    
+                    gc.fillArc(shapeX, shapeY, shapeW, shapeH, angle, 180, javafx.scene.shape.ArcType.CHORD);
+                    gc.strokeArc(shapeX, shapeY, shapeW, shapeH, angle, 180, javafx.scene.shape.ArcType.CHORD);
+                }
+                
+                if (c.isHovered()) {
+                    gc.setStroke(Color.YELLOW);
+                    gc.setLineWidth(3.0);
+                    if (t.equals("RECTANGLE")) {
+                        gc.strokeRect(shapeX, shapeY, shapeW, shapeH);
+                    } else if (t.equals("CIRCLE")) {
+                        gc.strokeOval(shapeX, shapeY, shapeW, shapeH);
+                    } else if (t.startsWith("SEMICIRCLE")) {
+                        double angle = 0;
+                        if (t.equals("SEMICIRCLE_TOP")) angle = 0;
+                        else if (t.equals("SEMICIRCLE_BOTTOM")) angle = 180;
+                        else if (t.equals("SEMICIRCLE_LEFT")) angle = 90;
+                        else if (t.equals("SEMICIRCLE_RIGHT")) angle = 270;
+                        gc.strokeArc(shapeX, shapeY, shapeW, shapeH, angle, 180, javafx.scene.shape.ArcType.CHORD);
+                    }
+                }
+            }
+
+            // Draw text
+            if (cc.getName() != null && cc.isShowName()) {
+                gc.setFill(Color.WHITE);
+                gc.setTextAlign(javafx.scene.text.TextAlignment.CENTER);
+                gc.setTextBaseline(javafx.geometry.VPos.CENTER);
+                gc.setFont(new javafx.scene.text.Font("SansSerif", physicalToScreen(2.0)));
+                gc.fillText(cc.getName(), 0, 0); // At origin
+            }
             gc.restore();
         }
     }

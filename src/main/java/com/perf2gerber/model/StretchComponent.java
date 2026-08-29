@@ -31,6 +31,16 @@ public class StretchComponent extends Component {
 
     @Override
     public boolean contains(double worldX, double worldY) {
+        boolean isVisualBox = "Visual Box".equals(getType());
+        
+        if (isVisualBox) {
+            double minX = Math.min(getStartX(), endX) - 0.5;
+            double maxX = Math.max(getStartX(), endX) + 0.5;
+            double minY = Math.min(getStartY(), endY) - 0.5;
+            double maxY = Math.max(getStartY(), endY) + 0.5;
+            return worldX >= minX && worldX <= maxX && worldY >= minY && worldY <= maxY;
+        }
+        
         double midX = (getStartX() + endX) / 2.0;
         double midY = (getStartY() + endY) / 2.0;
         

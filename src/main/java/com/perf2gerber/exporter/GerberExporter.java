@@ -237,6 +237,9 @@ public class GerberExporter {
                 double gs = board.getGridSpacing(); // grid spacing in mm
 
                 for (Component c : board.getComponents()) {
+                    if ("Visual Box".equals(c.getType()) || c instanceof com.perf2gerber.model.CustomComponent) {
+                        continue;
+                    }
                     if (c instanceof StretchComponent) {
                         exportStretchComponentSilkscreen(writer, (StretchComponent) c, gs);
                     } else if (c instanceof FixedComponent) {

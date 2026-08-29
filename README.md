@@ -7,6 +7,7 @@ Perf2Gerber est un outil de CAO léger conçu pour transformer des prototypes su
 - **Éditeur visuel 2.54mm** : Routage rapide de pistes avec gestion personnalisée de l'épaisseur.
 - **Double face** : Support des couches de cuivre Top (Rouge) et Bottom (Bleu) avec option de vue inversée (Back View).
 - **Sérigraphie** : Ajout de textes personnalisables (taille, rotation) et librement déplaçables.
+- **Composants Personnalisés** : Éditeur "Component Maker" intégré pour concevoir vos propres empreintes (formes et couleurs variées) et les sauvegarder dans une bibliothèque réutilisable.
 - **Ergonomie optimisée** : Outils dynamiques ("Spring-loaded" par maintien de touche), gomme sélective et historique complet (Undo/Redo).
 - **Raccourcis persistants** : Configuration des touches sauvegardée nativement pour les futures sessions.
 
@@ -32,4 +33,13 @@ L'exportation génère une archive `.zip` en un clic, contenant la suite standar
 
 4. **Sérigraphie (Text Tool & Pointer)** Sélectionnez l'outil Texte et cliquez sur la grille pour ajouter des annotations. Vous pouvez définir la taille exacte (en mm) et l'angle de rotation. Basculez ensuite sur l'outil Pointeur pour attraper vos textes et les glisser-déposer librement sur la carte.
 
-5. **Exportation** Allez dans `File > Export to Gerber...`. L'archive prête pour la production industrielle est générée immédiatement dans le dossier racine de votre projet.
+5. **Composants Personnalisés (Component Maker)** Allez dans `Parts... > Component Maker`.
+   - Vous disposez d'un canvas avec une grille de perçage pour repère. Dessinez les formes de votre composant physique à l'aide des outils `Box` et `Circle` (cercles et demi-cercles). 
+   - Chaque forme dessinée peut avoir sa propre couleur indépendante. Vous disposez aussi d'un historique (Undo via `Ctrl+Z`).
+   - Saisissez un nom et cliquez sur `Save to Library`. Votre composant sera alors accessible dans `Parts... > Custom Parts` pour être placé sur la carte. Vous pouvez à tout moment le recharger pour le modifier (`Edit Part...`) ou le supprimer.
+
+6. **Options de Prévisualisation (Preview)** La barre d'outils offre deux boutons d'aide à la visualisation :
+   - `Hide Unused Pads` : Maintenez enfoncé pour masquer tous les pads non utilisés. Parfait pour se concentrer sur les pistes et les composants.
+   - `Hide Pads & Parts` : Maintenez enfoncé pour masquer à la fois les pads et les composants. Ne laisse que le cuivre visible pour repérer rapidement d'éventuels court-circuits.
+
+7. **Exportation** Allez dans `File > Export to Gerber...`. L'archive prête pour la production industrielle est générée immédiatement dans le dossier racine de votre projet.

@@ -8,7 +8,12 @@ import com.perf2gerber.model.Trace;
 import com.perf2gerber.model.Component;
 import com.perf2gerber.model.FixedComponent;
 import com.perf2gerber.model.StretchComponent;
+import com.perf2gerber.model.CustomComponent;
 import com.perf2gerber.ui.EditorCanvas;
+import com.perf2gerber.ui.ComponentMakerWindow;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import java.io.FileReader;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -342,15 +347,17 @@ public class App extends Application {
         btnText.setToggleGroup(toolGroup);
 
         partsBox = new MenuButton("Parts...");
-        String[] parts = { "Resistor", "Capacitor", "Capacitor (Polarized)", "Diode", "LED", "Transistor", "IC" };
+        String[] parts = { "Resistor", "Capacitor", "Capacitor (Polarized)", "Diode", "LED", "Transistor", "IC", "Visual Box" };
         for (String part : parts) {
             MenuItem item = new MenuItem(part);
             item.setOnAction(e -> {
-                partsBox.setText(part); // Update the label to show what is selected
+                partsBox.setText(part);
                 openConfigDialogForPart(part);
             });
             partsBox.getItems().add(item);
         }
+        
+        loadCustomComponents(); // Load custom parts on startup
 
         toolGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
             if (oldVal != null) {
@@ -431,17 +438,87 @@ public class App extends Application {
             btnPreview.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-font-weight: bold;");
         });
 
+        Button btnPreviewBare = new Button("Hide Pads & Parts");
+        btnPreviewBare.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnPreviewBare.setOnMousePressed(e -> {
+            canvas.setHideUnusedPads(true);
+            canvas.setHideComponents(true);
+            btnPreviewBare.setStyle("-fx-background-color: #D4AF37; -fx-text-fill: #1E1E1E; -fx-font-weight: bold;");
+        });
+        btnPreviewBare.setOnMouseReleased(e -> {
+            canvas.setHideUnusedPads(false);
+            canvas.setHideComponents(false);
+            btnPreviewBare.setStyle("-fx-background-color: #3C3F41; -fx-text-fill: white; -fx-font-weight: bold;");
+        });
+
         toolbar.getChildren().addAll(
                 btnPointer, btnPads, btnWire, btnErase, btnText, partsBox,
                 lblLayer, layerBox,
                 lblWidth, widthBox,
                 lblPadSize, padBox,
-                btnPreview);
+                btnPreview, btnPreviewBare);
 
         return toolbar;
     }
 
+    private List<CustomComponent> customLibrary = new ArrayList<>();
+
+    private void loadCustomComponents() {
+        try {
+            java.io.File dir = new java.io.File(System.getProperty("user.home"), "Documents/Perf2Gerber_Projects");
+            java.io.File libFile = new java.io.File(dir, "custom_parts.json");
+            
+            if (libFile.exists()) {
+                Gson gson = new Gson();
+                customLibrary = gson.fromJson(new FileReader(libFile), new TypeToken<List<CustomComponent>>(){}.getType());
+                if (customLibrary == null) customLibrary = new ArrayList<>();
+                
+                // Clear existing custom parts from the menu (keep the default 8 ones)
+                if (partsBox.getItems().size() > 8) {
+                    partsBox.getItems().remove(8, partsBox.getItems().size());
+                }
+                
+                partsBox.getItems().add(new SeparatorMenuItem());
+                
+                Menu customMenu = new Menu("Custom Parts");
+                if (!customLibrary.isEmpty()) {
+                    for (CustomComponent cc : customLibrary) {
+                        MenuItem item = new MenuItem(cc.getName());
+                        item.setOnAction(e -> {
+                            partsBox.setText(cc.getName());
+                            openConfigDialogForPart(cc.getName());
+                        });
+                        customMenu.getItems().add(item);
+                    }
+                } else {
+                    MenuItem emptyItem = new MenuItem("(No custom parts yet)");
+                    emptyItem.setDisable(true);
+                    customMenu.getItems().add(emptyItem);
+                }
+                partsBox.getItems().add(customMenu);
+                
+                MenuItem makerItem = new MenuItem("Component Maker...");
+                makerItem.setOnAction(e -> {
+                    new com.perf2gerber.ui.ComponentMakerWindow(() -> {
+                        loadCustomComponents();
+                    }).show();
+                });
+                partsBox.getItems().add(makerItem);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void openConfigDialogForPart(String type) {
+        // Check if it's a custom part first
+        for (CustomComponent cc : customLibrary) {
+            if (cc.getName().equals(type)) {
+                canvas.setPendingPart(cc.cloneComponent());
+                return;
+            }
+        }
+        
         if (!type.equals("IC")) {
             if (type.equals("Transistor")) {
                 FixedComponent fc = new FixedComponent();
